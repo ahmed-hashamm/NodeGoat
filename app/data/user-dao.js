@@ -1,4 +1,4 @@
-const bcrypt = require("bcrypt-nodejs");
+const bcrypt = require("bcrypt");
 
 /* The UserDAO must be constructed with a connected database object */
 function UserDAO(db) {
@@ -18,16 +18,9 @@ function UserDAO(db) {
 
         // Create user document
         const user = {
-            userName,
-            firstName,
-            lastName,
+            userName, firstName, lastName,
             benefitStartDate: this.getRandomFutureDate(),
-            password //received from request param
-            /*
-            // Fix for A2-1 - Broken Auth
-            // Stores password  in a safer way using one way encryption and salt hashing
-            password: bcrypt.hashSync(password, bcrypt.genSaltSync())
-            */
+            password: bcrypt.hashSync(password, 10)   // was: plaintext password
         };
 
         // Add email if set
@@ -39,7 +32,7 @@ function UserDAO(db) {
             if (err) {
                 return callback(err, null);
             }
-            console.log(typeof(id));
+            console.log(typeof (id));
 
             user._id = id;
             usersCol.insert(user, (err, result) => !err ? callback(null, result.ops[0]) : callback(err, null));
@@ -57,13 +50,8 @@ function UserDAO(db) {
     this.validateLogin = (userName, password, callback) => {
 
         // Helper function to compare passwords
-        const comparePassword = (fromDB, fromUser) => {
-            return fromDB === fromUser;
-            /*
-            // Fix for A2-Broken Auth
-            // compares decrypted password stored in this.addUser()
-            return bcrypt.compareSync(fromDB, fromUser);
-            */
+        const comparePassword = (plaintext, hash) => {
+            return bcrypt.compareSync(plaintext, hash);
         };
 
         // Callback to pass to MongoDB that validates a user document
