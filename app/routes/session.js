@@ -4,6 +4,9 @@ const {
     environmentalScripts
 } = require("../../config/config");
 
+const jwt = require("jsonwebtoken");
+const validator = require("validator");
+
 /* The SessionHandler must be constructed with a connected db */
 function SessionHandler(db) {
     "use strict";
@@ -141,12 +144,11 @@ function SessionHandler(db) {
         const FNAME_RE = /^.{1,100}$/;
         const LNAME_RE = /^.{1,100}$/;
         const EMAIL_RE = /^[\S]+@[\S]+\.[\S]+$/;
-        const PASS_RE = /^.{1,20}$/;
         /*
         //Fix for A2-2 - Broken Authentication -  requires stronger password
         //(at least 8 characters with numbers and both lowercase and uppercase letters.)
-        const PASS_RE =/^(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}$/;
         */
+        const PASS_RE = /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}$/;
 
         errors.userNameError = "";
         errors.firstNameError = "";
@@ -177,8 +179,8 @@ function SessionHandler(db) {
             errors.verifyError = "Password must match";
             return false;
         }
-        if (email !== "") {
-            if (!EMAIL_RE.test(email)) {
+        if (email) {
+            if (!validator.isEmail(email)) {
                 errors.emailError = "Invalid email address";
                 return false;
             }
@@ -186,6 +188,18 @@ function SessionHandler(db) {
         return true;
     };
 
+    this.issueToken = (req, res) => {
+        const { userName, password } = req.body;
+        userDAO.validateLogin(userName, password, (err, user) => {
+            if (err) return res.status(401).send("Invalid credentials");
+            const token = jwt.sign(
+                { id: user._id, userName: user.userName },
+                process.env.JWT_SECRET || "jwt_secret_key_placeholder",
+                { expiresIn: "1h" }
+            );
+            res.json({ token });
+        });
+    };
     this.handleSignup = (req, res, next) => {
 
         const {
