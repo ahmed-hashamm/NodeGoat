@@ -55,10 +55,8 @@ function SessionHandler(db) {
     };
 
     this.handleLoginRequest = (req, res, next) => {
-        const {
-            userName,
-            password
-        } = req.body;
+        const userName = String(req.body.userName || "");
+        const password = String(req.body.password || "");
         userDAO.validateLogin(userName, password, (err, user) => {
             const errorMessage = "Invalid username and/or password";
             const invalidUserNameErrorMessage = "Invalid username";
@@ -192,7 +190,8 @@ function SessionHandler(db) {
     };
 
     this.issueToken = (req, res) => {
-        const { userName, password } = req.body;
+        const userName = String(req.body.userName || "");
+        const password = String(req.body.password || "");
         userDAO.validateLogin(userName, password, (err, user) => {
             if (err) return res.status(401).send("Invalid credentials");
             const token = jwt.sign(
@@ -205,14 +204,12 @@ function SessionHandler(db) {
     };
     this.handleSignup = (req, res, next) => {
 
-        const {
-            email,
-            userName,
-            firstName,
-            lastName,
-            password,
-            verify
-        } = req.body;
+        const email = String(req.body.email || "");
+        const userName = String(req.body.userName || "");
+        const firstName = String(req.body.firstName || "");
+        const lastName = String(req.body.lastName || "");
+        const password = String(req.body.password || "");
+        const verify = String(req.body.verify || "");
 
         // set these up in case we have an error case
         const errors = {
