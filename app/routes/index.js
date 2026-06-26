@@ -43,6 +43,9 @@ const index = (app, db) => {
     // The main page of the app
     app.get("/dashboard", isLoggedIn, sessionHandler.displayWelcomePage);
 
+    // JWT token endpoint
+    app.post("/api/auth/token", sessionHandler.issueToken);
+
     // Profile page
     app.get("/profile", isLoggedIn, profileHandler.displayProfile);
     app.post("/profile", isLoggedIn, profileHandler.handleProfileUpdate);

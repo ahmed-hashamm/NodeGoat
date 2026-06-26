@@ -29,7 +29,7 @@ function SessionHandler(db) {
     this.isAdminUserMiddleware = (req, res, next) => {
         if (req.session.userId) {
             return userDAO.getUserById(req.session.userId, (err, user) => {
-               return user && user.isAdmin ? next() : res.redirect("/login");
+                return user && user.isAdmin ? next() : res.redirect("/login");
             });
         }
         console.log("redirecting to login");
@@ -55,6 +55,10 @@ function SessionHandler(db) {
     };
 
     this.handleLoginRequest = (req, res, next) => {
+        // Fix for NoSQL/type-confusion injection (e.g. {"userName": {"$gt": ""}}):
+        // coerce both fields to primitive strings before they ever reach a DB query.
+        // An injected object becomes the literal string "[object Object]", which
+        // matches no real user and fails safely.
         const userName = String(req.body.userName || "");
         const password = String(req.body.password || "");
         userDAO.validateLogin(userName, password, (err, user) => {
@@ -91,6 +95,7 @@ function SessionHandler(db) {
                         environmentalScripts
                     });
                 } else if (err.invalidPassword) {
+                    logger.warn("Login failed", { userName, reason: "invalid_password" });
                     return res.render("login", {
                         userName: userName,
                         password: "",
@@ -104,21 +109,15 @@ function SessionHandler(db) {
                 }
             }
 
-            // A2-Broken Authentication and Session Management
-            // Upon login, a security best practice with regards to cookies session management
-            // would be to regenerate the session id so that if an id was already created for
-            // a user on an insecure medium (i.e: non-HTTPS website or otherwise), or if an
-            // attacker was able to get their hands on the cookie id before the user logged-in,
-            // then the old session id will render useless as the logged-in user with new privileges
-            // holds a new session id now.
-
-            // Fix the problem by regenerating a session in each login
-            // by wrapping the below code as a function callback for the method req.session.regenerate()
-            // i.e:
-            // `req.session.regenerate(() => {})`
-            req.session.userId = user._id;
-            logger.info("Login success", { userName });
-            return res.redirect(user.isAdmin ? "/benefits" : "/dashboard");
+            // Fix for A2 - Broken Authentication and Session Management:
+            // regenerate the session ID on login so that any session ID issued
+            // before authentication (e.g. on an insecure connection, or one an
+            // attacker fixed in advance) becomes useless once the user is logged in.
+            req.session.regenerate(() => {
+                req.session.userId = user._id;
+                logger.info("Login success", { userName });
+                return res.redirect(user.isAdmin ? "/benefits" : "/dashboard");
+            });
         });
     };
 
@@ -190,13 +189,23 @@ function SessionHandler(db) {
     };
 
     this.issueToken = (req, res) => {
+        // Same type-coercion fix as handleLoginRequest above.
         const userName = String(req.body.userName || "");
         const password = String(req.body.password || "");
         userDAO.validateLogin(userName, password, (err, user) => {
             if (err) return res.status(401).send("Invalid credentials");
+
+            // Fix: no fallback secret. If JWT_SECRET isn't set, this throws
+            // immediately rather than silently signing tokens with a value
+            // that's sitting in plain text in this file (and in version control).
+            if (!process.env.JWT_SECRET) {
+                logger.warn("Token issuance attempted with no JWT_SECRET configured");
+                return res.status(500).send("Server misconfiguration");
+            }
+
             const token = jwt.sign(
                 { id: user._id, userName: user.userName },
-                process.env.JWT_SECRET || "jwt_secret_key_placeholder",
+                process.env.JWT_SECRET,
                 { expiresIn: "1h" }
             );
             res.json({ token });
