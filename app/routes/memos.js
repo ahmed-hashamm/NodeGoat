@@ -1,4 +1,5 @@
 const MemosDAO = require("../data/memos-dao").MemosDAO;
+const validator = require("validator");
 const {
     environmentalScripts
 } = require("../../config/config");
@@ -10,7 +11,8 @@ function MemosHandler(db) {
 
     this.addMemos = (req, res, next) => {
 
-        memosDAO.insert(req.body.memo, (err, docs) => {
+        const sanitizedMemo = validator.escape(req.body.memo);
+        memosDAO.insert(sanitizedMemo, (err, docs) => {
             if (err) return next(err);
             this.displayMemos(req, res, next);
         });
