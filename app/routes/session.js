@@ -5,6 +5,7 @@ const {
 } = require("../../config/config");
 
 const jwt = require("jsonwebtoken");
+const logger = require("../utils/logger");
 const validator = require("validator");
 
 /* The SessionHandler must be constructed with a connected db */
@@ -65,6 +66,7 @@ function SessionHandler(db) {
             if (err) {
                 if (err.noSuchUser) {
                     console.log("Error: attempt to login with invalid user: ", userName);
+                    logger.warn("Login failed", { userName, reason: "invalid_user" });
 
                     // Fix for A1 - 3 Log Injection - encode/sanitize input for CRLF Injection
                     // that could result in log forging:
@@ -117,6 +119,7 @@ function SessionHandler(db) {
             // i.e:
             // `req.session.regenerate(() => {})`
             req.session.userId = user._id;
+            logger.info("Login success", { userName });
             return res.redirect(user.isAdmin ? "/benefits" : "/dashboard");
         });
     };
